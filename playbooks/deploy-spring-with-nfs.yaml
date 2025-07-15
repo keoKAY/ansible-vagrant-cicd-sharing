@@ -9,15 +9,25 @@
     docker_image_name: 69966/springgradleimg:1.1.1
 
   tasks: 
-    - name: Run docker compose 
-      community.docker.docker_compose:
-        project_name: spring-project
-        definition:
-          services:   
-            spring_service: 
-              image: "{{docker_image_name}}"
-              container_name: spring_cont
-              ports: 
-                - "8080:8080"
-              volumes: 
-                - "/mnt/nfs_share:/app/src/main/resources/images"
+  # copy docker compose from local to Vm 
+  # run docker-compose up in vm dir 
+    # - name: Run docker compose 
+    #   community.docker.docker_compose:
+    #     project_name: spring-project
+    #     definition:
+    #       services:   
+    #         spring_service: 
+    #           image: "{{docker_image_name}}"
+    #           container_name: spring_cont
+    #           ports: 
+    #             - "8080:8080"
+    #           volumes: 
+    #             - "/mnt/nfs_share:/app/src/main/resources/images"
+    - name: Copy Docker Compose file 
+      copy: 
+        src: docker-compose.yaml 
+        dest: /opt/docker-compose.yaml 
+    - name: Run docker compose file 
+      command: docker-compose up -d 
+      args: 
+        chdir: /opt 
