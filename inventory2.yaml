@@ -1,7 +1,9 @@
 all: 
   hosts: 
     localhost: 
-      ansible_connection: local 
+      ansible_connection: local
+      ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+      ansible_python_interpreter: /usr/bin/python3 
 # ansible -i inventory2.yaml localhost -m ping 
 
   children: 
@@ -10,8 +12,12 @@ all:
         vm-one:
           ansible_user: vagrant
           ansible_host: 192.168.56.10
+          ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+          ansible_python_interpreter: /usr/bin/python3
     nfs-clients: 
       hosts: 
         vm-two: 
           ansible_user: vagrant 
           ansible_host: 192.168.56.11
+          ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+          ansible_python_interpreter: /usr/bin/python3

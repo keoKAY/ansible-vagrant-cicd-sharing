@@ -1,32 +1,10 @@
+# using common role 
 ---
 - name: Install nginx with playbook 
-  hosts: all
+  hosts: nfs-servers,nfs-clients
   become: true 
   gather_facts: true 
-  #become_user: vagrant 
-  
-  tasks: 
-    - name: Update apt cache 
-      apt: 
-        update_cache: yes 
-    - name: Install Nginx 
-      apt: 
-        name: nginx 
-        state: present 
-    - name: Install neofetch 
-      apt: 
-        name: neofetch 
-        state: present 
-    - name: Install Docker 
-      apt: 
-        name: docker
-        state: present 
-    - name: Install Docker Compose 
-      apt: 
-        name: docker-compose 
-        state: present 
-    - name: Append current user to docker group 
-      user:
-        name: vagrant
-        groups: docker
-        append: yes
+  # use inside the playbook 
+  roles: 
+    - common 
+
