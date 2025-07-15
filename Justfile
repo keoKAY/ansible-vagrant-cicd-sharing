@@ -1,15 +1,15 @@
 #!/bin/bash
 up: 
-    cd machine-one && vagrant up 
-    cd machine-two && vagrant up
+    cd vagrant_vms/vm-one && vagrant up 
+    cd vagrant_vms/vm-two && vagrant up
      
 down: 
-    cd machine-one && vagrant halt 
-    cd machine-two && vagrant  halt
+    cd vagrant_vms/vm-one && vagrant halt 
+    cd vagrant_vms/vm-two && vagrant  halt
 destroy: 
-    cd machine-one && vagrant destroy -f 
-    cd machine-two && vagrant destroy -f  
+    cd vagrant_vms/vm-one && vagrant destroy -f 
+    cd vagrant_vms/vm-two && vagrant destroy -f  
 reload-one: 
-    cd machine-one && vagrant reload 
+    cd vagrant_vms/vm-one && vagrant reload 
 reload-two: 
-    cd machine-two && vagrant reload 
+    cd vagrant_vms/vm-two && vagrant reload 
