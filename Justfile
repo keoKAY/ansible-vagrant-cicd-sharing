@@ -1,15 +1,27 @@
 #!/bin/bash
-up: 
+reset-ssh: 
+    ssh-keygen -R 192.168.56.10
+    ssh-keygen -R 192.168.56.11
+up-all: 
     cd vagrant_vms/vm-one && vagrant up 
     cd vagrant_vms/vm-two && vagrant up
-     
+up name: 
+    #!/bin/bash
+    echo "Bring {{name }} up! " 
+    cd vagrant_vms/{{name}} && vagrant up 
 down: 
     cd vagrant_vms/vm-one && vagrant halt 
     cd vagrant_vms/vm-two && vagrant  halt
-destroy: 
+destroy-all: 
     cd vagrant_vms/vm-one && vagrant destroy -f 
     cd vagrant_vms/vm-two && vagrant destroy -f  
-reload-one: 
-    cd vagrant_vms/vm-one && vagrant reload 
-reload-two: 
-    cd vagrant_vms/vm-two && vagrant reload 
+    #rm -rf vagrant_vms/vm-one
+    #rm -rf vagrant_vms/vm-one
+reload name: 
+    #!/bin/bash
+    cd vagrant_vms/{{name}} && vagrant reload 
+
+run name: 
+    #!/bin/bash
+    echo "=> Running playbook = {{name}}.yaml 📖" 
+    ansible-playbook -i inventory2.yaml playbooks/{{name}}.yaml

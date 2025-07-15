@@ -1,7 +1,8 @@
 ---
 - name: Install nginx with playbook 
-  hosts: dev
+  hosts: all
   become: true 
+  become_user: vagrant 
   
   tasks: 
     - name: Update apt cache 
