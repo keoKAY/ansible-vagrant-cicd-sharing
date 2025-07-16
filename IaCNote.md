@@ -16,4 +16,14 @@ ssh vagrant@<ip-address>
 ssh-keygen -R <ip_address> 
 ssh-keygen 
 
+
+
+
+# make local change 
+cd folder-cloned 
+git stash 
+git pull origin custom-roles 
+git stash pop 
+
+
 ```

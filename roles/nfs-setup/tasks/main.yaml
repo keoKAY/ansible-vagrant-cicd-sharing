@@ -1,5 +1,7 @@
 # use  this role in order to setup NFS 
 - name: setup NFS Server 
   include_tasks: nfs-server-setup.yaml
+  when: inventory_hostname in groups['nfs_servers']
 - name: setup NFS Client 
   include_tasks: nfs-client-setup.yaml
+  when: inventory_hostname in groups['nfs_clients']
