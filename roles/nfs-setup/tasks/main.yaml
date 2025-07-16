@@ -1,0 +1,5 @@
+# use  this role in order to ssetup NFS 
+- name: setup NFS Server 
+  include_tasks: nfs-server-setup.yaml
+- name: setup NFS Client 
+  include_tasks: nfs-client-setup.yaml
