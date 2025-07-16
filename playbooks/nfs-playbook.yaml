@@ -1,0 +1,18 @@
+# Requirement 
+# Servers ( NFS )
+# Install Service ( docker , nginx, neofetch )
+---
+- name: NFS Playbooks 
+  hosts: nfs_servers,nfs_clients
+  become: true 
+  roles: 
+    - role: nfs-setup 
+      vars: 
+        nfs_export_dir: /srv/nfs/shared
+        nfs_client_ip: 192.168.56.11
+        nfs_server_ip: 192.168.56.10 
+        nfs_remote_dir: /srv/nfs/shared 
+        nfs_local_dir: /mnt/nfs_share
+
+
+  
