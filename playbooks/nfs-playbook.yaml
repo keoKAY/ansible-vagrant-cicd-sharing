@@ -3,7 +3,7 @@
 # Install Service ( docker , nginx, neofetch )
 ---
 - name: NFS Playbooks 
-  hosts: nfs_servers,nfs_clients
+  hosts: nfs-servers,nfs-clients
   become: true 
   roles: 
     - role: nfs-setup 
