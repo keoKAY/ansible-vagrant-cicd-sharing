@@ -4,7 +4,7 @@
   hosts: nfs-servers,nfs-clients
   become: true 
   gather_facts: true 
-  # use inside the playbook 
   roles: 
-  - common 
-
+    - role: common 
+  
+# ansible-playbook -i inventory2.yaml playbooks/common-playbook.yml

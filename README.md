@@ -77,4 +77,10 @@ roles
     └── tasks
         ├── common-service-install.yaml
         └── main.yaml
+
+
+# git clone url 
+# cd folder-name
+# git checkout custom-roles 
 ```
+

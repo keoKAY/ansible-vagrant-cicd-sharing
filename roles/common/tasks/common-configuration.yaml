@@ -1,0 +1,3 @@
+- name: Configuration for nginx 
+  debug: 
+    msg: " Running Configuration for Nginx "
