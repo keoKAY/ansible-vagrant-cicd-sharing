@@ -1,8 +1,0 @@
----
-- name: Install commone service 
-  hosts: nfs-servers
-  become: true 
-  roles: 
-    - common 
-
-#ansible-playbook -i inventory2.yaml site.yaml

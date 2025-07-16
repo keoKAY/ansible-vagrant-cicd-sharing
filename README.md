@@ -62,3 +62,19 @@ ansible -i inventory.ini nfs-network -m ping
 ```bash
 docker pull 69966/springgradleimg:1.1.1
 ```
+
+
+## FINAL NOTES 
+
+- Working with ansible role for better management and usuability 
+- Ansible Galaxy for the import orr downloading more roles 
+- Working Vault for encryption and sentitive protection 
+
+###  ANSIBLE ROLE 
+```bash
+roles
+└── common
+    └── tasks
+        ├── common-service-install.yaml
+        └── main.yaml
+```

@@ -6,5 +6,5 @@
   gather_facts: true 
   # use inside the playbook 
   roles: 
-    - common 
+  - common 
 
