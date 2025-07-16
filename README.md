@@ -83,4 +83,19 @@ roles
 # cd folder-name
 # git checkout custom-roles 
 ```
+### ANSIBLE GALAXY 
+```bash
+ansible-galaxy --help 
+ansible-galaxy install geerlingguy.nginx -p roles/
 
+
+
+```
+### ANSIBLE VAULT
+```bash 
+ansible-vault create secrets.yml
+
+ansible-playbook test-vault.yaml
+ansible-playbook test-vault.yaml --ask-vault-pass
+ansible-playbook test-vault.yaml --vault-password-file vault-pass.txt
+```

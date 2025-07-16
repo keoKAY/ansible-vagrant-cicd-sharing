@@ -1,0 +1,8 @@
+- name: Use Vault Secrets
+  hosts: all
+  vars_files:
+    - secrets.yml
+  tasks:
+    - name: Show secret
+      debug:
+        msg: "API key is {{ vault_api_key }}"

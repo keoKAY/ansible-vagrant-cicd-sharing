@@ -6,6 +6,8 @@
   hosts: nfs-servers,nfs-clients
   become: true 
   roles: 
+    - role: geerlingguy.nginx
+    - role: common # install common service 
     - role: nfs-setup 
       vars: 
         nfs_export_dir: /srv/nfs/shared
