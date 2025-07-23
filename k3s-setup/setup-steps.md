@@ -88,7 +88,7 @@ kubectl get node
 # on Master1
 sudo mkdir -p ~/.kube
 sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-sudo chown $USER:$USER ~/config
+sudo chown $USER:$USER ~/.kube/config
 
 # on local machine 
 mkdir ~/.kube
@@ -110,7 +110,12 @@ sudo k3s server --cluster-reset
 sudo rm -rf /var/lib/rancher/k3s/server/db/etcd
 
 ```
+## Adding  the worker nodes 
+```bash
+## SETTING UP WORKER1
 
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="agent --server https://192.168.56.10:6443 --token K10ff9a3e446f0bef1d40d31114727cb47f214e35189f443675e46bec0f28cc02ae::server:03215a9cf7c297180768c9e0b89f2f22 --node-ip 192.168.56.13 " sh -
+```
 
 ## Another way to stop it 
 ```bash
