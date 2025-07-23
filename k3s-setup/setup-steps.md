@@ -5,33 +5,19 @@ fish
 # Run Master1
 # etcd 
  
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--cluster-init \
-    --node-ip 192.168.56.10 \
-    --advertise-address 192.168.56.10 \
-    --tls-san 192.168.56.10 \
-    --tls-san 192.168.56.11 \
-    --tls-san 192.168.56.12 \
-    --tls-san 192.168.56.8 \
-    --node-taint CriticalAddonsOnly=true:NoExecute" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--cluster-init --node-ip 192.168.56.10 --advertise-address 192.168.56.10 --tls-san 192.168.56.10 --tls-san 192.168.56.11 --tls-san 192.168.56.12 --tls-san 192.168.56.8 --node-taint CriticalAddonsOnly=true:NoExecute" sh -
 
 sudo kubectl get node 
 sudo kubectl get node -o wide 
 
 sudo cat /var/lib/rancher/k3s/server/node-token
 
-export MASTER_TOKEN=K10e726a5bb65f7925eb318b5bcd98318fdef5e53a669220217a41bb41fca0bb694::server:d8b4da7af99b585880a0a95dd1226bdf
+export MASTER_TOKEN="K10ff9a3e446f0bef1d40d31114727cb47f214e35189f443675e46bec0f28cc02ae::server:03215a9cf7c297180768c9e0b89f2f22"
 # Master2 
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --server https://192.168.56.10:6443 --token ${MASTER_TOKEN} \
-    --node-ip 192.168.56.11 \
-    --advertise-address 192.168.56.11  \
-    --tls-san 192.168.56.10 \
-    --tls-san 192.168.56.11 \
-    --tls-san 192.168.56.12 \
-    --tls-san 192.168.56.8 \
-    --node-taint CriticalAddonsOnly=true:NoExecute" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --server https://192.168.56.10:6443 --token K10ff9a3e446f0bef1d40d31114727cb47f214e35189f443675e46bec0f28cc02ae::server:03215a9cf7c297180768c9e0b89f2f22 --node-ip 192.168.56.11 --advertise-address 192.168.56.11  --tls-san 192.168.56.10 --tls-san 192.168.56.11 --tls-san 192.168.56.12 --tls-san 192.168.56.8 --node-taint CriticalAddonsOnly=true:NoExecute" sh -
 
 # Master3
-export MASTER_TOKEN="K10e726a5bb65f7925eb318b5bcd98318fdef5e53a669220217a41bb41fca0bb694::server:d8b4da7af99b585880a0a95dd1226bdf"
+export MASTER_TOKEN="K10ff9a3e446f0bef1d40d31114727cb47f214e35189f443675e46bec0f28cc02ae::server:03215a9cf7c297180768c9e0b89f2f22"
 curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --server https://192.168.56.10:6443 --token ${MASTER_TOKEN} --node-ip 192.168.56.12  --advertise-address 192.168.56.12  --tls-san 192.168.56.10 --tls-san 192.168.56.11 --tls-san 192.168.56.12 --tls-san 192.168.56.8 --node-taint CriticalAddonsOnly=true:NoExecute" sh -
 
 ```
@@ -86,6 +72,9 @@ ip a
 ```bash
 # get the logs properly 
 sudo journalctl -u k3s -n 50 --no-pager
+# to only see the errors 
+sudo journalctl -u k3s -f --no-pager | grep -i error
+
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 
 chmod +x kubectl
@@ -119,5 +108,31 @@ sudo rm -rf /etc/rancher/k3s
 # on master1
 sudo k3s server --cluster-reset 
 sudo rm -rf /var/lib/rancher/k3s/server/db/etcd
+
+```
+
+
+## Another way to stop it 
+```bash
+sudo /usr/local/bin/k3s-uninstall.sh
+sudo rm -rf .kube # inside your home directory 
+# On the joining node, stop k3s completely
+sudo systemctl stop k3s
+sudo systemctl disable k3s
+
+# Clean up any remaining k3s processes
+sudo pkill -f k3s
+
+# Remove k3s data directory
+sudo rm -rf /var/lib/rancher/k3s
+sudo rm -rf /etc/rancher/k3s
+
+# Now try joining with explicit memory settings
+sudo k3s agent \
+  --server https://<MASTER_IP>:6443 \
+  --token <YOUR_NODE_TOKEN> \
+  --node-ip <THIS_NODE_IP> \
+  --kubelet-arg="max-pods=50" \
+  --kubelet-arg="pods-per-core=5"
 
 ```
