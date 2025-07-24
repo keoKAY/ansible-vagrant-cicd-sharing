@@ -1,0 +1,15 @@
+---
+# HAProxy backend servers
+haproxy_backends: 
+  - name: master1
+    address: 192.168.56.10
+    port: 6443
+  - name: master2
+    address: 192.168.56.11
+    port: 6443
+  - name: master3
+    address: 192.168.56.12
+    port: 6443 
+
+keepalived_interface: "enp0s8"
+keepalived_virtual_ip: "192.168.56.8"

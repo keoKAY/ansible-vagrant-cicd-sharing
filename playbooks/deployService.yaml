@@ -1,8 +1,0 @@
-- name: Create Infrastructure 
-  import_playbook: iaC.yaml
-- name: Install Required Services (nginx, docker, neofetch , compose ) 
-  import_playbook: one.yaml 
-- name: Setup NFS 
-  import_playbook: nfs_main.yaml
-- name: Deploy Service with NFS 
-  import_playbook: deploy-spring-with-nfs.yaml

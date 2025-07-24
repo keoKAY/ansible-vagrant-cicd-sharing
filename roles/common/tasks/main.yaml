@@ -1,2 +1,9 @@
-- name: common service installation 
-  include_tasks: common-service-install.yaml 
+- name: Install common packages
+  package:
+    name:
+      - curl
+      - wget
+      - vim
+      - htop
+      - net-tools
+    state: present
