@@ -21,10 +21,12 @@ down-all:
     cd vagrant_vms/lb-master && vagrant halt 
     cd vagrant_vms/lb-backup && vagrant halt
 destroy-all: 
-    cd vagrant_vms/vm-one && vagrant destroy -f 
-    cd vagrant_vms/vm-two && vagrant destroy -f  
-    #rm -rf vagrant_vms/vm-one
-    #rm -rf vagrant_vms/vm-one
+    cd vagrant_vms/master1 && vagrant destroy -f  
+    cd vagrant_vms/master2 && vagrant destroy -f  
+    cd vagrant_vms/master3 && vagrant destroy -f  
+    cd vagrant_vms/lb-master && vagrant destroy -f  
+    cd vagrant_vms/lb-backup && vagrant destroy -f 
+    cd vagrant_vms/agent1 && vagrant destroy -f 
 reload name: 
     #!/bin/bash
     cd vagrant_vms/{{name}} && vagrant reload 
