@@ -1,7 +1,15 @@
 #!/bin/bash
+iac: 
+    echo "=> Creating all vms from vm_machine.yaml file " 
+    ansible-playbook playbooks/iaC.yaml
+#just run iac
 reset-ssh: 
     ssh-keygen -R 192.168.56.10
     ssh-keygen -R 192.168.56.11
+    ssh-keygen -R 192.168.56.12
+    ssh-keygen -R 192.168.56.13
+    ssh-keygen -R 192.168.56.9
+    ssh-keygen -R 192.168.56.15
 up-all: 
     cd vagrant_vms/master1 && vagrant up 
     cd vagrant_vms/master2 && vagrant up 

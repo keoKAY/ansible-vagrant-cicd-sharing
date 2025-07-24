@@ -33,3 +33,11 @@ vms:
     cpus: 1
     box: "ubuntu/jammy64"
     path: "../vagrant_vms/master3"
+  
+  - name: agent1
+    ip: 192.168.56.13
+    memory: 512
+    cpus: 1
+    box: "ubuntu/jammy64"
+    path: "../vagrant_vms/agent1"
+  
