@@ -10,3 +10,14 @@ ansible-playbook playbooks/iaC.yaml
 - install haproxy keepalived 
 - configure haproxy -> on both machines 
 - configure keepalived.conf master , backup 
+
+
+```BASH
+
+
+cd /etc/haproxy 
+more haproxy.cfg
+
+
+ansible-playbook playbooks/loadbalancers.yaml
+```
