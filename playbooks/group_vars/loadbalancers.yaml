@@ -1,3 +1,4 @@
+# variables that can only used by group named loadbalancers
 ---
 # HAProxy backend servers
 haproxy_backends: 

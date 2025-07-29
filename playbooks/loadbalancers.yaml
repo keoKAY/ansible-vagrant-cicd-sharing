@@ -1,9 +1,11 @@
+# Services (HAProxy + Keepalived )
 ---
 - name: Configure Load Balancers
   hosts: loadbalancers
   become: yes
   roles:
     - role: haproxy
+  # post_tasks: tasks will run after role is completed 
   post_tasks:
     - name: Verify HAProxy is running
       service:

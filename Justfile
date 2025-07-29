@@ -16,7 +16,7 @@ up-all:
     cd vagrant_vms/master3 && vagrant up 
     cd vagrant_vms/lb-master && vagrant up 
     cd vagrant_vms/lb-backup && vagrant up 
-
+    cd vagrant_vms/agent1 && vagrant up 
 # just up-all     
 up name: 
     #!/bin/bash

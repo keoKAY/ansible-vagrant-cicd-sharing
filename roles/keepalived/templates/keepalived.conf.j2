@@ -1,0 +1,30 @@
+vrrp_script chk_haproxy {
+    script "/bin/kill -0 `cat /var/run/haproxy.pid`"
+    interval 2
+    weight 2
+    fall 2
+    rise 2
+}
+
+vrrp_instance VI_1 {
+{% if inventory_hostname == groups['loadbalancers'][0] %}
+    state MASTER
+    priority 110
+{% else %}
+    state BACKUP
+    priority 100
+{% endif %}
+    interface {{ keepalived_interface }}
+    virtual_router_id {{ keepalived_router_id }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ keepalived_password }}
+    }
+    virtual_ipaddress {
+        {{ keepalived_virtual_ip }}/24
+    }
+    track_script {
+        chk_haproxy
+    }
+}

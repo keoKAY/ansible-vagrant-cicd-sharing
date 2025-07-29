@@ -62,3 +62,7 @@ ansible -i inventory.ini nfs-network -m ping
 ```bash
 docker pull 69966/springgradleimg:1.1.1
 ```
+
+
+# Keepalived 
+- control + F `keepalived.conf.j2`

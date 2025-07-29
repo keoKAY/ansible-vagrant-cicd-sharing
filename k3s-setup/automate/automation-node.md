@@ -18,6 +18,11 @@ ansible-playbook playbooks/iaC.yaml
 cd /etc/haproxy 
 more haproxy.cfg
 
-
 ansible-playbook playbooks/loadbalancers.yaml
 ```
+
+
+## CheckList 
+- Loadbalancers 
+    - HAProxy already configured 
+    - Keepliaved 
