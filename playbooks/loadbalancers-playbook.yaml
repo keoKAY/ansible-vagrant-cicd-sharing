@@ -2,9 +2,10 @@
 ---
 - name: Configure Load Balancers
   hosts: loadbalancers
-  become: yes
+  become: true
   roles:
     - role: haproxy
+    - role: keepalived
   # post_tasks: tasks will run after role is completed 
   post_tasks:
     - name: Verify HAProxy is running
@@ -12,5 +13,10 @@
         name: haproxy
         state: started
         enabled: yes
+    - name: Verify Keepalived is running 
+      service: 
+        name: keepalived 
+        state: started 
+        enabled: yes 
 
-# ansible-playbook loadbalacers.yaml
+# ansible-playbook playbooks/loadbalancers-playbook.yaml
