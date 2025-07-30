@@ -1,0 +1,143 @@
+---
+- name: Check if K3s is already installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+- name: Check if the K3s uninstall script exists 
+  stat: 
+    path: /usr/local/bin/k3s-uninstall.sh
+  register: k3s_uninstall_script
+- name: Stop the service if it running 
+  service: 
+    name: k3s 
+    state: stopped 
+  ignore_errors: true 
+  when: k3s_installed.stat.exists
+- name: Disable K3s systemd service 
+  systemd: 
+    name: k3s 
+    enabled: no 
+  ignore_errors: true 
+  when: k3s_installed.stat.exists
+- name: Uninstall Existing K3s Installation 
+  shell: /usr/local/bin/k3s-uninstall.sh
+  when: 
+    - k3s_installed.stat.exists 
+    - k3s_uninstall_script.stat.exists
+
+- name: Clean up any remaining K3s Server Processes 
+  shell: |
+    pkill -f "k3s server" || true 
+    umount /var/lib/rancher/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs || true
+    umount /var/lib/rancher/k3s/data/*/bin || true
+  ignore_errors: true   
+- name: Remove K3s server directories
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/rancher/k3s
+    - /etc/rancher/k3s
+    - /var/lib/kubelet
+    - /var/lib/cni
+    - /opt/cni
+    - /run/k3s
+    - /run/flannel
+  ignore_errors: yes
+- name: Remove K3s server binaries and symlinks 
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/bin/k3s
+    - /usr/local/bin/kubectl
+    - /usr/local/bin/crictl
+    - /usr/local/bin/k3s-uninstall.sh
+  ignore_errors: yes
+- name: Wait for cleanup to complete
+  pause:
+    seconds: 30
+- name: Install first K3s master
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
+    --cluster-init \
+    --node-ip {{ ansible_host }} \
+    --advertise-address {{ ansible_host }}  \ 
+    {% for san in tls_sans %}
+    --tls-san {{ san }} \
+    {% endfor %}
+    {{ k3s_server_args | join(' ') }}
+  when: 
+  # only master1 able to run the --cluster-init 
+  - inventory_hostname == groups['masters'][0]
+- name: Test K3s API with kubectl
+  shell: kubectl get nodes --kubeconfig /etc/rancher/k3s/k3s.yaml
+  register: kubectl_test
+  until: kubectl_test.rc == 0
+  retries: 20
+  delay: 15 # meaning 15secs 
+  ignore_errors: yes
+  when: inventory_hostname == groups['masters'][0]
+- name: Display kubectl test result
+  debug:
+    var: kubectl_test.stdout_lines
+  when: inventory_hostname == groups['masters'][0]
+- name: Get cluster token from first master
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_file
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Set cluster token fact
+  set_fact:
+    k3s_cluster_token: "{{ hostvars[groups['masters'][0]]['k3s_token_file']['content'] | b64decode | trim }}"
+  when: inventory_hostname != groups['masters'][0]
+
+- name: Install additional K3s masters
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
+    --server https://192.168.56.10:6443 \
+    --token {{ k3s_cluster_token }} \
+    --node-ip {{ ansible_host }} \
+    --advertise-address {{ ansible_host }} \
+    {% for san in tls_sans %}
+    --tls-san {{ san }} \
+    {% endfor %}
+    {{ k3s_server_args | join(' ') }}
+  register: k3s_status
+  retries: 12
+  delay: 10
+  until: k3s_status.rc == 0 
+  when: 
+    #- not k3s_installed.stat.exists
+    - inventory_hostname != groups['masters'][0]
+    - inventory_hostname in groups['masters']
+
+- name: Create kubectl symlink
+  file:
+    src: /usr/local/bin/k3s
+    dest: /usr/local/bin/kubectl
+    state: link
+
+- name: Create .kube directory for vagrant user
+  file:
+    path: /home/vagrant/.kube
+    state: directory
+    owner: vagrant
+    group: vagrant
+    mode: '0755'
+
+# - name: Copy kubeconfig for vagrant user
+#   copy:
+#     src: /etc/rancher/k3s/k3s.yaml
+#     dest: /home/vagrant/.kube/config
+#     owner: vagrant
+#     group: vagrant
+#     mode: '0600'
+#     remote_src: yes
+#   when: inventory_hostname == groups['masters'][0]
+# - name: Update kubeconfig server endpoint for vagrant user
+#   replace:
+#     path: /home/vagrant/.kube/config
+#     regexp: 'https://127\.0\.0\.1:6443'
+#     replace: "https://{{ virtual_ip }}:6443"

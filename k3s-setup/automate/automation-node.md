@@ -26,3 +26,6 @@ ansible-playbook playbooks/loadbalancers.yaml
 - Loadbalancers 
     - HAProxy already configured 
     - Keepliaved 
+
+## OUR ISSUES 
+![alt text](image.png)

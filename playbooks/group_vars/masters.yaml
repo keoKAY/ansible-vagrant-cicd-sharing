@@ -1,0 +1,17 @@
+# group_vars/all.yaml
+
+# Cluster Information 
+k3s_version: v1.28.5+k3s1
+k3s_cluster_name: k3s-ha-cluster
+virtual_ip: "192.168.56.8"
+# TLS SANs (all IPs that need to be in the certificate)
+tls_sans:
+  - "{{ virtual_ip }}"
+  - "192.168.56.9"   # haproxy-main
+  - "192.168.56.15"  # haproxy-secondary
+  - "192.168.56.10"  # master1
+  - "192.168.56.11"  # master2
+  - "192.168.56.12"  # master3
+# Node taints for masters
+k3s_server_args:
+  - "CriticalAddonsOnly=true:NoExecute"

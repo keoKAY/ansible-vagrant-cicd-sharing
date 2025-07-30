@@ -1,0 +1,7 @@
+- name: Setup K3s HA masters  
+  hosts: masters 
+  become: true 
+  roles: 
+    - role: k3s-masters
+
+# ansible-playbook playbooks/masters-playbook.yaml
