@@ -66,3 +66,14 @@ docker pull 69966/springgradleimg:1.1.1
 
 # Keepalived 
 - control + F `keepalived.conf.j2`
+***
+### Our agenda 
+- soruce code after you clone : `git checkout IaCDemo `
+
+- loadbalancer 
+- After setup masters 
+- we will setup workers 
+- setup clients 
+
+- kubernetes lesson 
+- explore different obj in kubernetes 

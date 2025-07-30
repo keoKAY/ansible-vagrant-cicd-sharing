@@ -38,8 +38,13 @@ destroy-all:
 reload name: 
     #!/bin/bash
     cd vagrant_vms/{{name}} && vagrant reload 
-
 run name: 
     #!/bin/bash
     echo "=> Running playbook = {{name}}.yaml 📖" 
     ansible-playbook -i inventory2.yaml playbooks/{{name}}.yaml
+setup-workers: 
+    echo "=> Setup Workers ...."
+    ansible-playbook playbooks/workers-playbook.yaml
+setup-masters: 
+    echo "=> Setup HA Clusters with K3s...." 
+    ansible-playbook playbooks/masters-playbook.yaml
