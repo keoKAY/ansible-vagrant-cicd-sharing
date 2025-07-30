@@ -1,0 +1,21 @@
+---
+- name: Get cluster token from master
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_file
+  delegate_to: "{{ groups['masters'][0] }}"
+
+- name: Set cluster token fact
+  set_fact:
+    k3s_cluster_token: "{{ k3s_token_file['content'] | b64decode | trim }}"
+
+- name: Check if K3s agent is already installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Install K3s worker
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" K3S_URL=https://192.168.56.10:6443 K3S_TOKEN={{ k3s_cluster_token }} sh -s - agent \
+    --node-ip {{ ansible_host }}
+  when: not k3s_installed.stat.exists

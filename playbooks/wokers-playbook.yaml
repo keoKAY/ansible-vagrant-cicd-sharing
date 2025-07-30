@@ -1,0 +1,8 @@
+- name: Setup K3s workers 
+  hosts: workers # group workers 
+  become: true 
+  roles: 
+    #- role: nfs-client
+    - role: k3s-workers
+
+# just setup-workers

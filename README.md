@@ -70,10 +70,16 @@ docker pull 69966/springgradleimg:1.1.1
 ### Our agenda 
 - soruce code after you clone : `git checkout IaCDemo `
 
-- loadbalancer 
+[o] completing loadbalancer 
 - After setup masters 
 - we will setup workers 
 - setup clients 
 
 - kubernetes lesson 
 - explore different obj in kubernetes 
+
+```bash
+sudo systemctl status k3s 
+sudo systemctl restart k3s # if the service activating 
+sudo kubectl get node  
+```
