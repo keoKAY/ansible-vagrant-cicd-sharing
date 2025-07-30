@@ -1,0 +1,38 @@
+# install kubectl 
+# create .kube directory if it doesn't exist 
+# download config file from master1 -> /home/user/.kube
+# change ownership of the file (kk:kk)
+# change server part to lb part 
+- name: Ensure .kube directory exists
+  file:
+    path: /home/kk/.kube
+    state: directory
+    owner: kk
+    group: kk
+    mode: '0755'
+
+- name: Fetch kubeconfig from master1
+  fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: /tmp/k3s.yaml
+    flat: yes
+  delegate_to: master1
+
+- name: Replace server IP with Load Balancer address in kubeconfig
+  replace:
+    path: /tmp/k3s.yaml
+    regexp: '^(\s*server:\s*)https://[0-9\.]+:6443'
+    replace: '\1https://192.168.56.8:6443'
+
+- name: Copy kubeconfig to user home
+  copy:
+    src: /tmp/k3s.yaml
+    dest: /home/kk/.kube/config
+    owner: kk
+    group: kk
+    mode: '0600'
+
+- name: Clean up temporary kubeconfig
+  file:
+    path: /tmp/k3s.yaml
+    state: absent

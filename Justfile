@@ -48,3 +48,8 @@ setup-workers:
 setup-masters: 
     echo "=> Setup HA Clusters with K3s...." 
     ansible-playbook playbooks/masters-playbook.yaml
+cluster-setup: 
+    ansible-playbook playbooks/loadbalancers-playbook.yaml
+    ansible-playbook playbooks/masters-playbook.yaml
+    ansible-playbook playbooks/workers-playbook.yaml
+  

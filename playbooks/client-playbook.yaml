@@ -1,0 +1,7 @@
+- name: Config Client machine 
+  hosts: local
+  become: true 
+# when you work with local machine
+  gather_facts: false 
+  roles: 
+    - role: k3s-clients

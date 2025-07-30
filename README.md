@@ -83,3 +83,7 @@ sudo systemctl status k3s
 sudo systemctl restart k3s # if the service activating 
 sudo kubectl get node  
 ```
+
+
+
+local -> run kubectl get node -> lb-master -> k3s-cluster
