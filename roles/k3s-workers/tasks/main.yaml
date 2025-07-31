@@ -12,10 +12,26 @@
 - name: Check if K3s agent is already installed
   stat:
     path: /usr/local/bin/k3s
-  register: k3s_installed
+  register: k3s_agent_installed
+- name: Uninstall K3s agent if already installed
+  shell: /usr/local/bin/k3s-agent-uninstall.sh
+  when: k3s_agent_installed.stat.exists
+  ignore_errors: yes
+
+- name: Remove leftover K3s files (optional cleanup)
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/rancher/k3s
+    - /var/lib/rancher/k3s
+    - /var/lib/kubelet
+    - /var/lib/cni
+    - /run/flannel
+  when: k3s_agent_installed.stat.exists
 
 - name: Install K3s worker
   shell: |
     curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" K3S_URL=https://192.168.56.10:6443 K3S_TOKEN={{ k3s_cluster_token }} sh -s - agent \
     --node-ip {{ ansible_host }}
-  when: not k3s_installed.stat.exists
+  when: not k3s_agent_installed.stat.exists
