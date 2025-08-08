@@ -10,6 +10,10 @@ reset-ssh:
     ssh-keygen -R 192.168.56.13
     ssh-keygen -R 192.168.56.9
     ssh-keygen -R 192.168.56.15
+reload-all: 
+    cd vagrant_vms/master1 && vagrant reload 
+    cd vagrant_vms/master2 && vagrant reload 
+    cd vagrant_vms/master3 && vagrant reload 
 up-all: 
     cd vagrant_vms/master1 && vagrant up 
     cd vagrant_vms/master2 && vagrant up 
@@ -52,4 +56,8 @@ cluster-setup:
     ansible-playbook playbooks/loadbalancers-playbook.yaml
     ansible-playbook playbooks/masters-playbook.yaml
     ansible-playbook playbooks/workers-playbook.yaml
+    ansible-playbook playbooks/client-playbook.yaml
   
+# just cluster-setup
+
+# git checkout IaCDemo

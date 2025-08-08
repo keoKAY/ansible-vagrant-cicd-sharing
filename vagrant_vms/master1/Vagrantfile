@@ -8,7 +8,7 @@ Vagrant.configure("2") do |config|
   end
   
   config.vm.synced_folder "../shared", "/vagrant_shared"
-
+  # configure the forward_port for accessing service from master1 
   config.vm.provision "shell", inline: <<-SHELL
     apt-get update 
     apt-get install -y fish 

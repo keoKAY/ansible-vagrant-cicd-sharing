@@ -3,5 +3,6 @@
   become: true 
   roles: 
     - role: k3s-masters
+    #- role: k3s-masters-flannel
 
 # ansible-playbook playbooks/masters-playbook.yaml

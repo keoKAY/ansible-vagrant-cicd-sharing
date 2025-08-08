@@ -1,0 +1,274 @@
+---
+- name: Fixing the flannel issue on the kuberneretes clusters 
+  become: yes 
+  hosts: masters
+  serial: 1 # process on master at a time to maintainer the cluster availability
+  vars: 
+    cluster_cidr: "10.42.0.0/16"
+    service_cidr: "10.43.0.0/16"
+    flannel_backend: "vxlan"
+    flannel_port: 8472
+  tasks:
+      # Phase 1: Diagnosis
+      - name: Check current cluster status
+        shell: kubectl get nodes -o wide --kubeconfig /etc/rancher/k3s/k3s.yaml
+        register: cluster_nodes
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      - name: Display current cluster nodes
+        debug:
+          var: cluster_nodes.stdout_lines
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      - name: Check existing Flannel pods
+        shell: kubectl get pods -n kube-system -l app=flannel -o wide --kubeconfig /etc/rancher/k3s/k3s.yaml
+        register: flannel_pods
+        ignore_errors: yes
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      - name: Display Flannel pod status
+        debug:
+          var: flannel_pods.stdout_lines
+        when: flannel_pods.stdout != ""
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      # Phase 2: Check K3s configuration
+      - name: Check current K3s server arguments
+        shell: ps aux | grep "k3s server" | grep -v grep
+        register: k3s_process
+        
+      - name: Display current K3s configuration
+        debug:
+          var: k3s_process.stdout_lines
+
+      # Phase 3: Check network interfaces
+      - name: Check current network interfaces
+        shell: ip addr show | grep -E "(flannel|cni|docker)"
+        register: network_interfaces
+        ignore_errors: yes
+
+      - name: Display network interfaces
+        debug:
+          var: network_interfaces.stdout_lines
+        when: network_interfaces.stdout != ""
+
+      # Phase 4: Check CNI configuration
+      - name: Check CNI configuration files
+        find:
+          paths: /etc/cni/net.d/
+          patterns: "*.conf*"
+        register: cni_files
+
+      - name: Display CNI files
+        debug:
+          var: cni_files.files
+
+      - name: Read CNI configuration
+        slurp:
+          src: "{{ item.path }}"
+        register: cni_content
+        loop: "{{ cni_files.files }}"
+        when: cni_files.files | length > 0
+
+      - name: Display CNI configuration content
+        debug:
+          msg: "{{ item.content | b64decode }}"
+        loop: "{{ cni_content.results }}"
+        when: cni_content is defined and cni_content.results is defined
+
+      # Phase 5: Fix Flannel if needed
+      - name: Stop K3s service for reconfiguration
+        systemd:
+          name: k3s
+          state: stopped
+        when: inventory_hostname != groups['masters'][0]  # Don't stop the first master first
+
+      - name: Clean up existing CNI configuration
+        file:
+          path: /etc/cni/net.d/
+          state: absent
+        when: inventory_hostname != groups['masters'][0]
+
+      - name: Recreate CNI directory
+        file:
+          path: /etc/cni/net.d/
+          state: directory
+          mode: '0755'
+        when: inventory_hostname != groups['masters'][0]
+
+      - name: Remove existing network interfaces
+        shell: |
+          ip link delete flannel.1 2>/dev/null || true
+          ip link delete cni0 2>/dev/null || true
+        ignore_errors: true
+        when: inventory_hostname != groups['masters'][0]
+
+      - name: Update K3s service with correct Flannel configuration (non-first masters)
+        shell: |
+          curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version | default('') }}" sh -s - server \
+          --server https://{{ hostvars[groups['masters'][0]]['ansible_host'] }}:6443 \
+          --token {{ hostvars[groups['masters'][0]]['k3s_cluster_token'] }} \
+          --node-ip {{ ansible_host }} \
+          --advertise-address {{ ansible_host }} \
+          --cluster-cidr {{ cluster_cidr }} \
+          --service-cidr {{ service_cidr }} \
+          --flannel-backend={{ flannel_backend }} \
+          --flannel-iface={{ ansible_default_ipv4.interface }} \
+          {% for san in tls_sans | default([]) %}
+          --tls-san {{ san }} \
+          {% endfor %}
+          {{ k3s_server_args | default([]) | join(' ') }}
+        when: inventory_hostname != groups['masters'][0]
+        register: k3s_reinstall_result
+
+      # Now handle the first master
+      - name: Stop K3s service on first master
+        systemd:
+          name: k3s
+          state: stopped
+        when: inventory_hostname == groups['masters'][0]
+
+      - name: Clean up existing CNI configuration on first master
+        file:
+          path: /etc/cni/net.d/
+          state: absent
+        when: inventory_hostname == groups['masters'][0]
+
+      - name: Recreate CNI directory on first master
+        file:
+          path: /etc/cni/net.d/
+          state: directory
+          mode: '0755'
+        when: inventory_hostname == groups['masters'][0]
+
+      - name: Remove existing network interfaces on first master
+        shell: |
+          ip link delete flannel.1 2>/dev/null || true
+          ip link delete cni0 2>/dev/null || true
+        ignore_errors: true
+        when: inventory_hostname == groups['masters'][0]
+
+      - name: Update K3s service with correct Flannel configuration (first master)
+        shell: |
+          curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version | default('') }}" sh -s - server \
+          --cluster-init \
+          --node-ip {{ ansible_host }} \
+          --advertise-address {{ ansible_host }} \
+          --cluster-cidr {{ cluster_cidr }} \
+          --service-cidr {{ service_cidr }} \
+          --flannel-backend={{ flannel_backend }} \
+          --flannel-iface={{ ansible_default_ipv4.interface }} \
+          {% for san in tls_sans | default([]) %}
+          --tls-san {{ san }} \
+          {% endfor %}
+          {{ k3s_server_args | default([]) | join(' ') }}
+        when: inventory_hostname == groups['masters'][0]
+        register: k3s_reinstall_result_master
+
+      # Phase 6: Verify the fix
+      - name: Wait for K3s API to be ready
+        wait_for:
+          port: 6443
+          host: "{{ ansible_host }}"
+          timeout: 300
+        when: inventory_hostname == groups['masters'][0]
+
+      - name: Wait for all nodes to be ready
+        shell: kubectl get nodes --no-headers --kubeconfig /etc/rancher/k3s/k3s.yaml | awk '{print $2}' | grep -v Ready | wc -l
+        register: nodes_not_ready
+        until: nodes_not_ready.stdout|int == 0
+        retries: 30
+        delay: 10
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      - name: Verify Flannel pods are running
+        shell: kubectl get pods -n kube-system -l app=flannel --kubeconfig /etc/rancher/k3s/k3s.yaml
+        register: flannel_verification
+        until: "'Running' in flannel_verification.stdout"
+        retries: 20
+        delay: 15
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      - name: Display final Flannel status
+        debug:
+          var: flannel_verification.stdout_lines
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      # Phase 7: Network connectivity test
+      - name: Create test deployment for network testing
+        shell: |
+          kubectl apply -f - --kubeconfig /etc/rancher/k3s/k3s.yaml <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: network-test
+            namespace: default
+          spec:
+            replicas: 3
+            selector:
+              matchLabels:
+                app: network-test
+            template:
+              metadata:
+                labels:
+                  app: network-test
+              spec:
+                containers:
+                - name: busybox
+                  image: busybox:1.35
+                  command: ['sleep', '3600']
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: network-test-svc
+            namespace: default
+          spec:
+            selector:
+              app: network-test
+            ports:
+            - port: 80
+              targetPort: 80
+            type: ClusterIP
+          EOF
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      - name: Wait for test deployment to be ready
+        shell: kubectl get deployment network-test -o jsonpath='{.status.readyReplicas}' --kubeconfig /etc/rancher/k3s/k3s.yaml
+        register: test_ready
+        until: test_ready.stdout|int >= 3
+        retries: 20
+        delay: 10
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      - name: Test cross-node pod communication
+        shell: |
+          kubectl get pods -l app=network-test -o wide --kubeconfig /etc/rancher/k3s/k3s.yaml
+          kubectl exec -it $(kubectl get pods -l app=network-test -o jsonpath='{.items[0].metadata.name}' --kubeconfig /etc/rancher/k3s/k3s.yaml) --kubeconfig /etc/rancher/k3s/k3s.yaml -- nslookup network-test-svc.default.svc.cluster.local
+        register: network_test_result
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+        ignore_errors: yes
+
+      - name: Display network test results
+        debug:
+          var: network_test_result.stdout_lines
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+
+      - name: Clean up test deployment
+        shell: |
+          kubectl delete deployment network-test --kubeconfig /etc/rancher/k3s/k3s.yaml
+          kubectl delete service network-test-svc --kubeconfig /etc/rancher/k3s/k3s.yaml
+        run_once: true
+        delegate_to: "{{ groups['masters'][0] }}"
+        ignore_errors: yes

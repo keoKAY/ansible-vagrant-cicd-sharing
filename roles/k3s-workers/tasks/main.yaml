@@ -11,8 +11,9 @@
 
 - name: Check if K3s agent is already installed
   stat:
-    path: /usr/local/bin/k3s
+    path: /usr/local/bin/k3s-agent-uninstall.sh
   register: k3s_agent_installed
+
 - name: Uninstall K3s agent if already installed
   shell: /usr/local/bin/k3s-agent-uninstall.sh
   when: k3s_agent_installed.stat.exists

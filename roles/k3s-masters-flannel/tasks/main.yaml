@@ -1,0 +1,319 @@
+---
+- name: Check if K3s is already installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Check if the K3s uninstall script exists 
+  stat: 
+    path: /usr/local/bin/k3s-uninstall.sh
+  register: k3s_uninstall_script
+
+- name: Stop the service if it running 
+  service: 
+    name: k3s 
+    state: stopped 
+  ignore_errors: true 
+  when: k3s_installed.stat.exists
+
+- name: Disable K3s systemd service 
+  systemd: 
+    name: k3s 
+    enabled: no 
+  ignore_errors: true 
+  when: k3s_installed.stat.exists
+
+- name: Uninstall Existing K3s Installation 
+  shell: /usr/local/bin/k3s-uninstall.sh
+  when: 
+    - k3s_installed.stat.exists 
+    - k3s_uninstall_script.stat.exists
+
+- name: Clean up any remaining K3s Server Processes 
+  shell: |
+    pkill -f "k3s server" || true 
+    pkill -f "flannel" || true
+    pkill -f "containerd" || true
+    # Wait a moment for processes to terminate
+    sleep 10
+    # Clean up mount points (more robust approach)
+    for mount in $(mount | grep -E '(k3s|containerd|overlay)' | awk '{print $3}' | sort -r); do
+      umount "$mount" 2>/dev/null || true
+    done
+    # Clean up network interfaces
+    ip link delete flannel.1 2>/dev/null || true
+    ip link delete cni0 2>/dev/null || true
+    ip link delete docker0 2>/dev/null || true
+    # Clean up iptables rules (save existing rules first)
+    iptables-save > /tmp/iptables-backup-$(date +%s) 2>/dev/null || true
+    iptables -t nat -F POSTROUTING 2>/dev/null || true
+    iptables -t nat -F PREROUTING 2>/dev/null || true
+    iptables -F FORWARD 2>/dev/null || true
+    # Clean up routes
+    ip route flush proto bird 2>/dev/null || true
+    ip route flush table main proto kernel scope link src 10.42.0.0/16 2>/dev/null || true
+  ignore_errors: true
+
+- name: Remove K3s server directories
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/rancher/k3s
+    - /etc/rancher/k3s
+    - /var/lib/kubelet
+    - /var/lib/cni
+    - /opt/cni/bin
+    - /run/k3s
+    - /run/flannel
+    - /var/lib/containerd
+    - /run/containerd
+  ignore_errors: yes
+
+- name: Remove K3s server binaries and symlinks 
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/bin/k3s
+    - /usr/local/bin/kubectl
+    - /usr/local/bin/crictl
+    - /usr/local/bin/k3s-uninstall.sh
+  ignore_errors: yes
+
+- name: Wait for cleanup to complete
+  pause:
+    seconds: 30
+
+- name: Install first K3s master
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
+    --cluster-init \
+    --node-ip {{ ansible_host }} \
+    --advertise-address {{ ansible_host }} \
+    --bind-address 0.0.0.0 \
+    --cluster-cidr {{ cluster_cidr | default('10.42.0.0/16') }} \
+    --service-cidr {{ service_cidr | default('10.43.0.0/16') }} \
+    --flannel-backend=vxlan \
+    --flannel-ipv6-masq \
+    --disable-cloud-controller \
+    --disable servicelb \
+    --write-kubeconfig-mode=644 \
+    {% if tls_sans is defined %}{% for san in tls_sans %}--tls-san {{ san }} \
+    {% endfor %}{% endif %}--tls-san {{ ansible_host }} \
+    --tls-san {{ ansible_default_ipv4.address }} \
+    {{ k3s_server_args | default([]) | join(' ') }}
+  environment:
+    INSTALL_K3S_SKIP_DOWNLOAD: false
+  when: 
+    - inventory_hostname == groups['masters'][0]
+
+- name: Wait for K3s to be ready on first master
+  wait_for:
+    port: 6443
+    host: "{{ ansible_host }}"
+    delay: 15
+    timeout: 300
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Wait for K3s service to be active on first master
+  systemd:
+    name: k3s
+    state: started
+  register: k3s_service_status
+  until: k3s_service_status.status.ActiveState == "active"
+  retries: 30
+  delay: 10
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Test K3s API with kubectl on first master
+  shell: kubectl get nodes --kubeconfig /etc/rancher/k3s/k3s.yaml
+  register: kubectl_test
+  until: kubectl_test.rc == 0
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Wait for Flannel to be ready 
+  shell: |
+    kubectl get pods -n kube-flannel -l app=flannel --kubeconfig /etc/rancher/k3s/k3s.yaml --no-headers 2>/dev/null | grep -c Running || echo "0"
+  register: flannel_status 
+  until: flannel_status.stdout|int > 0
+  retries: 60 
+  delay: 10 
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Verify first master is ready
+  shell: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' --kubeconfig /etc/rancher/k3s/k3s.yaml
+  register: node_ready_status
+  until: node_ready_status.stdout == "True"
+  retries: 30
+  delay: 10
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Display kubectl test result
+  debug:
+    var: kubectl_test.stdout_lines
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Get cluster token from first master
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_file
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Distribute cluster token to all masters
+  set_fact:
+    k3s_cluster_token: "{{ hostvars[groups['masters'][0]]['k3s_token_file']['content'] | b64decode | trim }}"
+  when: k3s_token_file is defined
+
+- name: Wait for token distribution
+  pause:
+    seconds: 5
+  when: inventory_hostname != groups['masters'][0]
+
+- name: Install additional K3s masters
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
+    --server https://{{ hostvars[groups['masters'][0]]['ansible_host'] }}:6443 \
+    --token {{ hostvars[groups['masters'][0]]['k3s_cluster_token'] }} \
+    --node-ip {{ ansible_host }} \
+    --advertise-address {{ ansible_host }} \
+    --bind-address 0.0.0.0 \
+    --cluster-cidr {{ cluster_cidr | default('10.42.0.0/16') }} \
+    --service-cidr {{ service_cidr | default('10.43.0.0/16') }} \
+    --flannel-backend=vxlan \
+    --flannel-ipv6-masq \
+    --disable-cloud-controller \
+    --disable servicelb \
+    --write-kubeconfig-mode=644 \
+    {% if tls_sans is defined %}{% for san in tls_sans %}--tls-san {{ san }} \
+    {% endfor %}{% endif %}--tls-san {{ ansible_host }} \
+    --tls-san {{ ansible_default_ipv4.address }} \
+    {{ k3s_server_args | default([]) | join(' ') }}
+  environment:
+    INSTALL_K3S_SKIP_DOWNLOAD: false
+  register: k3s_status
+  retries: 5
+  delay: 30
+  until: k3s_status.rc == 0 
+  when: 
+    - inventory_hostname != groups['masters'][0]
+    - inventory_hostname in groups['masters']
+    - hostvars[groups['masters'][0]]['k3s_cluster_token'] is defined
+
+- name: Wait for additional masters to join
+  wait_for:
+    port: 6443
+    host: "{{ ansible_host }}"
+    delay: 15
+    timeout: 300
+  when: 
+    - inventory_hostname != groups['masters'][0]
+    - inventory_hostname in groups['masters']
+
+- name: Wait for additional masters service to be active
+  systemd:
+    name: k3s
+    state: started
+  register: k3s_additional_service_status
+  until: k3s_additional_service_status.status.ActiveState == "active"
+  retries: 30
+  delay: 10
+  when: 
+    - inventory_hostname != groups['masters'][0]
+    - inventory_hostname in groups['masters']
+
+- name: Verify all masters are ready
+  shell: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' --kubeconfig /etc/rancher/k3s/k3s.yaml
+  register: all_nodes_ready_status
+  until: all_nodes_ready_status.stdout == "True"
+  retries: 30
+  delay: 10
+  when: inventory_hostname in groups['masters']
+
+- name: Create kubectl symlink
+  file:
+    src: /usr/local/bin/k3s
+    dest: /usr/local/bin/kubectl
+    state: link
+  when: inventory_hostname in groups['masters']
+
+- name: Create .kube directory for vagrant user
+  file:
+    path: /home/vagrant/.kube
+    state: directory
+    owner: vagrant
+    group: vagrant
+    mode: '0755'
+  when: inventory_hostname in groups['masters']
+
+- name: Copy kubeconfig for vagrant user
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: /home/vagrant/.kube/config
+    owner: vagrant
+    group: vagrant
+    mode: '0600'
+    remote_src: yes
+  when: inventory_hostname in groups['masters']
+
+- name: Update kubeconfig server endpoint for vagrant user
+  replace:
+    path: /home/vagrant/.kube/config
+    regexp: 'https://127\.0\.0\.1:6443'
+    replace: "https://{{ virtual_ip | default(ansible_host) }}:6443"
+  when: inventory_hostname in groups['masters']
+
+- name: Test connectivity from all masters
+  shell: |
+    kubectl get nodes --kubeconfig /etc/rancher/k3s/k3s.yaml -o wide
+  register: connectivity_test
+  ignore_errors: yes
+  when: inventory_hostname in groups['masters']
+
+- name: Display connectivity test results
+  debug:
+    msg: 
+      - "Host: {{ inventory_hostname }}"
+      - "{{ connectivity_test.stdout_lines | default(['Failed to connect']) }}"
+  when: inventory_hostname in groups['masters']
+
+- name: Verify cluster status from first master
+  shell: |
+    echo "=== Cluster Nodes ==="
+    kubectl get nodes --kubeconfig /etc/rancher/k3s/k3s.yaml -o wide
+    echo "=== Flannel Pods ==="
+    kubectl get pods -n kube-flannel --kubeconfig /etc/rancher/k3s/k3s.yaml
+    echo "=== System Pods ==="
+    kubectl get pods -n kube-system --kubeconfig /etc/rancher/k3s/k3s.yaml
+    echo "=== Cluster Info ==="
+    kubectl cluster-info --kubeconfig /etc/rancher/k3s/k3s.yaml
+  register: final_cluster_status
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Display final cluster status
+  debug:
+    msg: "{{ final_cluster_status.stdout_lines }}"
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Test cross-node network connectivity
+  shell: |
+    # Test if we can reach other master nodes
+    {% for host in groups['masters'] %}
+    {% if host != inventory_hostname %}
+    echo "Testing connectivity to {{ hostvars[host]['ansible_host'] }}:6443"
+    timeout 10 bash -c "</dev/tcp/{{ hostvars[host]['ansible_host'] }}/6443" && echo "✓ Can reach {{ hostvars[host]['ansible_host'] }}:6443" || echo "✗ Cannot reach {{ hostvars[host]['ansible_host'] }}:6443"
+    {% endif %}
+    {% endfor %}
+  register: network_connectivity_test
+  ignore_errors: yes
+  when: inventory_hostname in groups['masters']
+
+- name: Display network connectivity test
+  debug:
+    msg: "{{ network_connectivity_test.stdout_lines }}"
+  when: 
+    - inventory_hostname in groups['masters']
+    - network_connectivity_test is defined

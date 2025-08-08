@@ -62,6 +62,7 @@
     curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
     --cluster-init \
     --node-ip {{ ansible_host }} \
+    --flannel-iface=enp0s8 \ 
     --advertise-address {{ ansible_host }}  \ 
     {% for san in tls_sans %}
     --tls-san {{ san }} \
@@ -99,6 +100,7 @@
     --server https://192.168.56.10:6443 \
     --token {{ k3s_cluster_token }} \
     --node-ip {{ ansible_host }} \
+    --flannel-iface=enp0s8 \ 
     --advertise-address {{ ansible_host }} \
     {% for san in tls_sans %}
     --tls-san {{ san }} \
